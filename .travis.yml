@@ -3,22 +3,35 @@ language: python
 python:
   - "3.8"
 
-env:
-  - SECRET_KEY='TEST'
-
-# command to install dependencies
 install:
   - pip install -r requirements.txt
 
-# start postgresql
+addons:
+  postgresql: 13
+  apt:
+    packages:
+    - postgresql-13
+env:
+  global:
+  - PGPORT=5433
+  - SECRET_KEY='secret_key'
+
 services:
   - postgresql
 
-# create a database
-before_script:
-  - psql -c 'create database test_database;' -U postgres
-  - psql -f test_data.sql -U postgres -d test_database
+before_install:
+  # Use trust instead of peer authentication:
+  - >-
+    sudo sed -i
+    -e '/local.*peer/s/postgres/all/'
+    -e 's/peer\|md5/trust/g'
+    /etc/postgresql/13/main/pg_hba.conf
+  # Restart the PostgreSQL service:
+  - sudo service postgresql@13-main restart
 
-# command to run tests
+before_script:
+  - psql -p 5433 -U postgres -c 'CREATE DATABASE test_database;'
+  - psql -p 5433 -U postgres -f test_data.sql -d test_database
+
 script:
-  - python manage.py test
+  - python manage.py test --keepdb
